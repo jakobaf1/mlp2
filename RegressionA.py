@@ -50,25 +50,24 @@ attributeNames = ["Offset"] + attributeNames
 M = M + 1
 
 # Define predicted variable
-temp = y
-variable_model = "Extent"
-variable_idx = attributeNames.index(variable_model)
-y = np.empty((0,1))
-y = X[:, variable_idx]
-X[:,variable_idx] = temp
-print(X[:,variable_idx])
-attributeNames[variable_idx] = "Class"
-# X_cols = list(range(0, variable_idx)) + list(range(variable_idx + 1, len(attributeNames)))
-# X = X[:, X_cols]
-# M = M - 1
+temp = y.copy()
+variable_model = "Area"
+if (variable_model != "Class"):
+    variable_idx = attributeNames.index(variable_model)
+    y = X[:,variable_idx].copy()
+    X[:,variable_idx] = temp
+    attributeNames[variable_idx] = "Class"
 
 # We standardize the data since we have very different scales in our data
 mu = np.empty((1, M - 1))
 sigma = np.empty((1, M - 1))
 mu = np.mean(X[:, 1:], 0)
+muY = np.mean(y,0)
+sigmaY = np.std(y,0)
 sigma = np.std(X[:, 1:], 0)
 
 X[:,1:] = (X[:,1:] - mu) / sigma
+y = (y-muY)/sigmaY
 
 ## Find the weights for linear model ##
 # Define the interval for values of lambda (from 10^l1 - 10^l2)
@@ -86,23 +85,23 @@ k = 10
 ) = rlr_validate(X, y, lambdas, k)
 
 # Plot for regularization parameter values against estimated generalization error
-# figure(k, figsize=(12, 8))
-# subplot(1, 2, 1)
-# semilogx(lambdas, mean_w_vs_lambda.T[:, 1:], ".-")  # Don't plot the bias term
-# xlabel("Regularization factor")
-# ylabel("Mean Coefficient Values")
-# grid()
+figure(k, figsize=(12, 8))
+subplot(1, 2, 1)
+semilogx(lambdas, mean_w_vs_lambda.T[:, 1:], ".-")  # Don't plot the bias term
+xlabel("Regularization factor")
+ylabel("Mean Coefficient Values")
+grid()
 
-# subplot(1, 2, 2)
-# title("Optimal lambda: 1e{0}".format(np.log10(opt_lambda)))
-# loglog(
-#     lambdas, train_err_vs_lambda.T, "b.-", lambdas, test_err_vs_lambda.T, "r.-"
-# )
-# xlabel("Regularization factor")
-# ylabel("Squared error (crossvalidation)")
-# legend(["Train error", "Validation error"])
-# grid()
-# show()
+subplot(1, 2, 2)
+title("Optimal lambda: 1e{0}".format(np.log10(opt_lambda)))
+loglog(
+    lambdas, train_err_vs_lambda.T, "b.-", lambdas, test_err_vs_lambda.T, "r.-"
+)
+xlabel("Regularization factor")
+ylabel("Squared error (crossvalidation)")
+legend(["Train error", "Validation error"])
+grid()
+show()
 
 # Extract weigths from the optimal lambda value
 index_opt_lambda = 0
@@ -120,7 +119,7 @@ for i in range(0, len(attributeNames)):
 # print(w1)
 
 # Define weights and linear model
-y_reg = w * X
+y_reg = np.dot(X,w)
 
 # Perform regression on defined model
 # model = lm.LinearRegression(fit_intercept=True)
@@ -129,13 +128,15 @@ y_reg = w * X
 
 
 # Display scatter plot
-# figure()
-# subplot(2, 1, 1)
-# plot(y, y_est, ".")
-# xlabel("(true)")
-# ylabel("(estimated)")
+figure()
+subplot(2, 1, 1)
+plot(y, y_reg, ".")
+xlabel("(true)")
+ylabel("(estimated)")
 
-# show()
+show()
 print("Weight values:")
 for m in range(M):
-    print("{:>15} {:>15}".format(attributeNames[m], np.round(w[m], 8)))
+    print("{:>15} {:>15}".format(attributeNames[m], np.round(w[m], 2)))
+
+print("Correlation = ", np.corrcoef(y,y_reg)[0,1])
