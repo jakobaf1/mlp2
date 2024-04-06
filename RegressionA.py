@@ -1,7 +1,22 @@
 from ucimlrepo import fetch_ucirepo 
 import numpy as np
-from scipy.io import loadmat
+from matplotlib.pylab import figure, hist, plot, show, subplot, xlabel, ylabel
+import sklearn.linear_model as lm
 from sklearn import model_selection
+from matplotlib.pylab import (
+    figure,
+    grid,
+    legend,
+    loglog,
+    semilogx,
+    show,
+    subplot,
+    title,
+    xlabel,
+    ylabel,
+)
+
+from dtuimldmtools import rlr_validate
 
 # fetch dataset 
 raisin = fetch_ucirepo(id=850) 
@@ -29,31 +44,69 @@ X[:,4] = np.asarray(X1.ConvexArea)
 X[:,5] = np.asarray(X1.Extent)
 X[:,6] = np.asarray(X1.Perimeter)
 
-# Add offset attribute
-X = np.concatenate((np.ones((X.shape[0], 1)), X), 1)
-attributeNames = ["Offset"] + attributeNames
-M = M + 1
+# Define predicted variable
+variable_model = "Perimeter"
+variable_idx = attributeNames.index(variable_model)
+y = X[:, variable_idx]
 
-## Crossvalidation ##
-# Define the value of K-Fold
-K = 10
-CV = model_selection.KFold(K, shuffle=True)
+X_cols = list(range(0, variable_idx)) + list(range(variable_idx + 1, len(attributeNames)))
+X = X[:, X_cols]
 
+
+## Find the weights for linear model ##
 # Define the interval for values of lambda (from 10^l1 - 10^l2)
-l1, l2 = -2, 2
+l1, l2 = -5, 2
 lambdas = np.power(10.0, range(l1, l2))
 
-# Variables for Regularized Linear Regression
-Error_train_rlr = np.empty((K, 1))
-Error_test_rlr = np.empty((K, 1))
-Error_train_nofeatures = np.empty((K, 1))
-Error_test_nofeatures = np.empty((K, 1))
-w_rlr = np.empty((M, K))
-mu = np.empty((K, M - 1))
-sigma = np.empty((K, M - 1))
-w_noreg = np.empty((M, K))
+# Use function rlr_validate to find optimal lambda with 10-fold cross validation
+k = 10
+(
+    opt_val_err,
+    opt_lambda,
+    mean_w_vs_lambda,
+    train_err_vs_lambda,
+    test_err_vs_lambda,
+) = rlr_validate(X, y, lambdas, k)
+
+figure(k, figsize=(12, 8))
+subplot(1, 2, 1)
+semilogx(lambdas, mean_w_vs_lambda.T[:, 1:], ".-")  # Don't plot the bias term
+xlabel("Regularization factor")
+ylabel("Mean Coefficient Values")
+grid()
+# You can choose to display the legend, but it's omitted for a cleaner
+# plot, since there are many attributes
+# legend(attributeNames[1:], loc='best')
+
+subplot(1, 2, 2)
+title("Optimal lambda: 1e{0}".format(np.log10(opt_lambda)))
+loglog(
+    lambdas, train_err_vs_lambda.T, "b.-", lambdas, test_err_vs_lambda.T, "r.-"
+)
+xlabel("Regularization factor")
+ylabel("Squared error (crossvalidation)")
+legend(["Train error", "Validation error"])
+grid()
+show()
+
+# Define weights and linear model
+w0 = -0.5
+w1 = 0.01
+y = w0 + w1 * X
+
+# Perform regression on defined model
+model = lm.LinearRegression(fit_intercept=True)
+model.fit(X, y)
+y_est = model.predict(X)
 
 
+# Display scatter plot
+# figure()
+# subplot(2, 1, 1)
+# plot(y, y_est, ".")
+# xlabel("(true)")
+# ylabel("(estimated)")
+# subplot(2, 1, 2)
+# hist(residual, 40)
 
-
-
+# show()
