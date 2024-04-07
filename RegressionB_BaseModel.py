@@ -40,6 +40,7 @@ for di_train, di_test in CV1.split(y):
         validation_error[j] = mean_squared_error(y_dj_test, y_pred_validation)
         j += 1
 
+# Am not currently using the inner loop for anything
     # Training on outer fold training data
     mean_train = np.mean(y_train)
 
@@ -53,6 +54,5 @@ generalization_error_total = 0
 for i in range(K1):
     generalization_error_total += len(y_test)/N*test_error[i]
 
-print("Generalization error for ", variable_model, ": ",generalization_error_total[0]*sigmaY)
+print("Generalization error for ", variable_model, ": ", generalization_error_total[0]*sigmaY)
 
-## ANN Model ##

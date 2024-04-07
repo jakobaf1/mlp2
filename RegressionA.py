@@ -114,23 +114,14 @@ for i in range(l1, l2):
 w = []
 for i in range(0, len(attributeNames)):
     w.append(mean_w_vs_lambda[i,index_opt_lambda])
-# print(opt_lambda)
-# print(mean_w_vs_lambda)
-# print(w1)
 
 # Define weights and linear model
-y_reg = np.dot(X,w)
-
-# Perform regression on defined model
-# model = lm.LinearRegression(fit_intercept=True)
-# model.fit(X, y)
-# y_est = model.predict(X)
-
+y_reg_values = np.dot(X,w)
 
 # Display scatter plot
 # figure()
 # subplot(2, 1, 1)
-# plot(y, y_reg, ".")
+# plot(y, y_reg_values, ".")
 # xlabel("(true)")
 # ylabel("(estimated)")
 
@@ -141,6 +132,6 @@ print("Weight values:")
 for m in range(M):
     print("{:>15} {:>15}".format(attributeNames[m], np.round(w[m], 2)))
 
-print("Correlation = ", np.corrcoef(y,y_reg)[0,1])
+print("Correlation = ", np.corrcoef(y,y_reg_values)[0,1])
 print("Generalization test-error: ", test_err_vs_lambda*sigmaY)
 print("Generalized train-error: ", train_err_vs_lambda*sigmaY)

@@ -47,7 +47,6 @@ if (variable_model != "Class"):
     y = X[:,variable_idx].copy()
     X[:,variable_idx] = temp
     attributeNames[variable_idx] = "Class"
-
 # We standardize the data since we have very different scales in our data
 mu = np.empty((1, M - 1))
 sigma = np.empty((1, M - 1))
@@ -67,9 +66,15 @@ l1, l2 = -5, 2
 lambdas = np.power(10.0, range(l1, l2))
 
 # Error variables
-generalization_error_base = []
-generalization_error_regular = []
-opt_lambdas = []
+# Base model
+generalization_error_base = np.empty(K1)
+mean_train = np.empty((K1,K1))
+base_models = np.empty((K1,1))
+
+# Regular model
+opt_lambdas = np.empty(K1)
+w_rlr = np.empty((M, K1))
+Error_test_rlr = np.empty(K1)
 
 i = 0
 for di_train, di_test in CV1.split(y):
@@ -85,25 +90,24 @@ for di_train, di_test in CV1.split(y):
     validation_error = np.empty((K2,1))
     j = 0
     for dj_train, dj_test in CV2.split(y_train):
+        ## BASE ##
         # Training on inner fold training data
-        mean_train = np.mean(y_train[dj_train])
+        mean_train[i][j] = np.mean(y_train[dj_train])
         y_dj_test = y_train[dj_test]
 
         # Predict using mean for validation set
-        y_pred_validation = np.full_like(y_dj_test, mean_train)
-
+        y_pred_validation = np.full_like(y_dj_test, mean_train[i][j])
         # Calculate mean squared error for validation set
         validation_error[j] = mean_squared_error(y_dj_test, y_pred_validation)
         j += 1
 
-    # Training on outer fold training data
-    mean_train = np.mean(y_train)
-    # Predict using mean for validation set
-    y_pred_validation = np.full_like(y_test, mean_train)
+    # Add the results of the inner fold
+    base_models[i] = np.mean(mean_train[i])
+    print(base_models[i])
     # Calculate generalization error for the base model
-    generalization_error_base.append(mean_squared_error(y_test, y_pred_validation)*sigmaY)
+    generalization_error_base[i] = np.mean(validation_error)*sigmaY
     
-
+    ## REGULAR ##
     # Use function rlr_validate to find optimal lambda with 10-fold cross validation
     (
         opt_val_err,
@@ -112,18 +116,14 @@ for di_train, di_test in CV1.split(y):
         train_err_vs_lambda,
         test_err_vs_lambda,
     ) = rlr_validate(X_train, y_train, lambdas, K2)
-
-    # Find the index for optimal lambda value
-    index_opt_lambda = 0
-    j = 0
-    for i in range(l1, l2):
-        if i == np.log10(opt_lambda):
-            index_opt_lambda = j
-            break
-        j += 1
-        
-    generalization_error_regular.append(test_err_vs_lambda[index_opt_lambda]*sigmaY)
-    opt_lambdas.append(opt_lambda)
+    opt_lambdas[i] = opt_lambda
+    Xty = X_train.T @ y_train
+    XtX = X_train.T @ X_train
+    # Estimate weights for the optimal value of lambda, on entire training set
+    lambdaI = opt_lambda * np.eye(M)
+    lambdaI[0, 0] = 0  # Do no regularize the bias term
+    w_rlr[:, i] = np.linalg.solve(XtX + lambdaI, Xty).squeeze()
+    Error_test_rlr[i] = (np.square(y_test - X_test @ w_rlr[:, i]).sum(axis=0) / y_test.shape[0])*sigmaY
 
     i += 1
 
@@ -131,8 +131,19 @@ for di_train, di_test in CV1.split(y):
 print("Generalization error for ", variable_model, ": ")
 print("Baseline regression model (mean) ", generalization_error_base)
 print("Regularization parameters: ", opt_lambdas)
-print("Generalization errors for rularization: ", generalization_error_regular)
+print("Generalization errors for regularization: ", Error_test_rlr)
 
+# Define models by averaging the results of cross-validation
+#Base
+y_est_base = np.mean(base_models[0])
+# This value doesn't make sense. Too small
+print("y_est_base = ", y_est_base*sigmaY+muY)
+
+#Regular
+w_final = np.empty(M)
+for i in range(len(w_rlr[:])):
+    w_final[i] = np.mean(w_rlr[i,:])
+y_est_regular_values = np.dot(X,w_final)
 
 ## paired t-test to get interval and p-values ##
 # perform statistical comparison of the models
