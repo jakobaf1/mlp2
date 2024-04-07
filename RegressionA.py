@@ -85,23 +85,23 @@ k = 10
 ) = rlr_validate(X, y, lambdas, k)
 
 # Plot for regularization parameter values against estimated generalization error
-figure(k, figsize=(12, 8))
-subplot(1, 2, 1)
-semilogx(lambdas, mean_w_vs_lambda.T[:, 1:], ".-")  # Don't plot the bias term
-xlabel("Regularization factor")
-ylabel("Mean Coefficient Values")
-grid()
+# figure(k, figsize=(12, 8))
+# subplot(1, 2, 1)
+# semilogx(lambdas, mean_w_vs_lambda.T[:, 1:], ".-")  # Don't plot the bias term
+# xlabel("Regularization factor")
+# ylabel("Mean Coefficient Values")
+# grid()
 
-subplot(1, 2, 2)
-title("Optimal lambda: 1e{0}".format(np.log10(opt_lambda)))
-loglog(
-    lambdas, train_err_vs_lambda.T, "b.-", lambdas, test_err_vs_lambda.T, "r.-"
-)
-xlabel("Regularization factor")
-ylabel("Squared error (crossvalidation)")
-legend(["Train error", "Validation error"])
-grid()
-show()
+# subplot(1, 2, 2)
+# title("Optimal lambda: 1e{0}".format(np.log10(opt_lambda)))
+# loglog(
+#     lambdas, train_err_vs_lambda.T, "b.-", lambdas, test_err_vs_lambda.T, "r.-"
+# )
+# xlabel("Regularization factor")
+# ylabel("Squared error (crossvalidation)")
+# legend(["Train error", "Validation error"])
+# grid()
+# show()
 
 # Extract weigths from the optimal lambda value
 index_opt_lambda = 0
@@ -128,15 +128,19 @@ y_reg = np.dot(X,w)
 
 
 # Display scatter plot
-figure()
-subplot(2, 1, 1)
-plot(y, y_reg, ".")
-xlabel("(true)")
-ylabel("(estimated)")
+# figure()
+# subplot(2, 1, 1)
+# plot(y, y_reg, ".")
+# xlabel("(true)")
+# ylabel("(estimated)")
 
-show()
+# show()
+
+# Print regression model
 print("Weight values:")
 for m in range(M):
     print("{:>15} {:>15}".format(attributeNames[m], np.round(w[m], 2)))
 
 print("Correlation = ", np.corrcoef(y,y_reg)[0,1])
+print("Generalization test-error: ", test_err_vs_lambda*sigmaY)
+print("Generalized train-error: ", train_err_vs_lambda*sigmaY)
