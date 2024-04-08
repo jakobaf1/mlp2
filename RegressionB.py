@@ -1,5 +1,6 @@
 import numpy as np
 from sklearn import model_selection
+import scipy.stats as st
 
 from sklearn.metrics import mean_squared_error
 from ucimlrepo import fetch_ucirepo 
@@ -77,19 +78,19 @@ w_rlr = np.empty((M, K1))
 Error_test_rlr = np.empty(K1)
 
 i = 0
-for di_train, di_test in CV1.split(y):
+for di_train, di_test in CV1.split(X, y):
     # extract training and test set for current CV fold
     X_train = X[di_train]
     X_test = X[di_test]
     y_train = y[di_train]
     y_test = y[di_test]
-    
+
     # Define inner folds
     K2 = 10
     CV2 = model_selection.KFold(n_splits=K2,shuffle=True)
     validation_error = np.empty((K2,1))
     j = 0
-    for dj_train, dj_test in CV2.split(y_train):
+    for dj_train, dj_test in CV2.split(X_train, y_train):
         ## BASE ##
         # Training on inner fold training data
         mean_train[i][j] = np.mean(y_train[dj_train])
@@ -103,10 +104,13 @@ for di_train, di_test in CV1.split(y):
 
     # Add the results of the inner fold
     base_models[i] = np.mean(mean_train[i])
-    print(base_models[i])
     # Calculate generalization error for the base model
     generalization_error_base[i] = np.mean(validation_error)*sigmaY
     
+    ## ANN ## 
+    
+
+
     ## REGULAR ##
     # Use function rlr_validate to find optimal lambda with 10-fold cross validation
     (
@@ -136,30 +140,61 @@ print("Generalization errors for regularization: ", Error_test_rlr)
 # Define models by averaging the results of cross-validation
 #Base
 y_est_base = np.mean(base_models[0])
-# This value doesn't make sense. Too small
-print("y_est_base = ", y_est_base*sigmaY+muY)
+yhat_base = np.ones(N)*y_est_base
+# print("y_est_base = ", y_est_base*sigmaY+muY)
 
 #Regular
 w_final = np.empty(M)
 for i in range(len(w_rlr[:])):
     w_final[i] = np.mean(w_rlr[i,:])
-y_est_regular_values = np.dot(X,w_final)
+yhat_regular = np.dot(X,w_final)
 
 ## paired t-test to get interval and p-values ##
 # perform statistical comparison of the models
-# compute z with squared error.
-# zA = np.abs(y_test - yhatA) ** 2
+alpha = 0.05
+# compute z with squared error for each model:
+# REGULARIZED #
+zR = np.abs(y - yhat_regular) ** 2
+# BASE #
+zB = np.abs(y - yhat_base) ** 2
+# ANN #
+# zA =
 
-# # compute confidence interval of model A
-# alpha = 0.05
+# compute confidence interval of model A
 # CIA = st.t.interval(
-#     1 - alpha, df=len(zA) - 1, loc=np.mean(zA), scale=st.sem(zA)
-# )  # Confidence interval
+#     1 - alpha, df=len(zR) - 1, loc=np.mean(zR), scale=st.sem(zR)
+# )  # Confidence interval regularized regression model
 
-# # Compute confidence interval of z = zA-zB and p-value of Null hypothesis
-# zB = np.abs(y_test - yhatB) ** 2
+# Compute confidence interval and p-value of Null hypothesis #
+
+# Base vs. Regularized #
+z = zR - zB
+CI = st.t.interval(
+    1 - alpha, len(z) - 1, loc=np.mean(z), scale=st.sem(z)
+)  # Confidence interval Baseline regression model
+p = 2 * st.t.cdf(-np.abs(np.mean(z)) / st.sem(z), df=len(z) - 1)  # p-value
+
+print("Confidence interval Base vs. Regularized: ", CI)
+print("p-value Base vs. Regularized: ", p)
+
+# Base vs. ANN #
 # z = zA - zB
 # CI = st.t.interval(
 #     1 - alpha, len(z) - 1, loc=np.mean(z), scale=st.sem(z)
-# )  # Confidence interval
+# )  # Confidence interval Baseline regression model
 # p = 2 * st.t.cdf(-np.abs(np.mean(z)) / st.sem(z), df=len(z) - 1)  # p-value
+
+# print("Confidence interval Base vs. ANN: ", CI)
+# print("p-value Base vs. ANN: ", p)
+
+# Regularized vs. ANN #
+# Base vs. Regularized #
+# z = zR - zA
+# CI = st.t.interval(
+#     1 - alpha, len(z) - 1, loc=np.mean(z), scale=st.sem(z)
+# )  # Confidence interval Baseline regression model
+# p = 2 * st.t.cdf(-np.abs(np.mean(z)) / st.sem(z), df=len(z) - 1)  # p-value
+
+# print("Confidence interval ANN vs. Regularized: ", CI)
+# print("p-value ANN vs. Regularized: ", p)
+

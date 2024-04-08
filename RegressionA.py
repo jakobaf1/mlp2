@@ -30,7 +30,6 @@ classLabels = np.asarray(y.Class)
 classNames = sorted(set(classLabels))
 classDict = dict(zip(classNames, range(2)))
 attributeNames = X1.columns.values.tolist()
-
 y = np.asarray([classDict[value] for value in classLabels])
 C = len(classNames)
 
@@ -124,7 +123,6 @@ y_reg_values = np.dot(X,w)
 # plot(y, y_reg_values, ".")
 # xlabel("(true)")
 # ylabel("(estimated)")
-
 # show()
 
 # Print regression model
