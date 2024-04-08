@@ -1,3 +1,4 @@
+#Libaries:
 import numpy as np
 from sklearn import model_selection
 import scipy.stats as st
@@ -6,10 +7,11 @@ from sklearn.metrics import mean_squared_error
 from ucimlrepo import fetch_ucirepo 
 import numpy as np
 from sklearn import model_selection
-
+from dtuimldmtools import draw_neural_net, train_neural_net
+import torch
 from dtuimldmtools import rlr_validate
 
-# fetch dataset 
+# fetch data 
 raisin = fetch_ucirepo(id=850) 
 
 # data (as pandas dataframes) 
@@ -17,13 +19,15 @@ X1 = raisin.data.features
 y = raisin.data.targets 
 N, M = X1.shape
 
+# Attribute Names
+attributeNames = X1.columns.values.tolist()
+# Making classlabels ones & zeros
 classLabels = np.asarray(y.Class)
 classNames = sorted(set(classLabels))
 classDict = dict(zip(classNames, range(2)))
-attributeNames = X1.columns.values.tolist()
 
 y = np.asarray([classDict[value] for value in classLabels])
-C = len(classNames)
+
 
 # translating data to matrix format
 X = np.empty((N, 7))
@@ -40,7 +44,7 @@ X = np.concatenate((np.ones((X.shape[0], 1)), X), 1)
 attributeNames = ["Offset"] + attributeNames
 M = M + 1
 
-# Define predicted variable
+# Choose variable to predict
 temp = y.copy()
 variable_model = "Area"
 if (variable_model != "Class"):
@@ -48,6 +52,7 @@ if (variable_model != "Class"):
     y = X[:,variable_idx].copy()
     X[:,variable_idx] = temp
     attributeNames[variable_idx] = "Class"
+
 # We standardize the data since we have very different scales in our data
 mu = np.empty((1, M - 1))
 sigma = np.empty((1, M - 1))
@@ -55,16 +60,24 @@ mu = np.mean(X[:, 1:], 0)
 muY = np.mean(y,0)
 sigmaY = np.std(y,0)
 sigma = np.std(X[:, 1:], 0)
-
 X[:,1:] = (X[:,1:] - mu) / sigma
 y = (y-muY)/sigmaY
+
+############################## Data Initialisation Complete ################################
+###############################     Also standardisation   #################################
 
 # Define outer folds
 K1 = 10
 CV1 = model_selection.KFold(n_splits=K1,shuffle=True)
+
 # Define the interval for values of lambda (from 10^l1 - 10^l2)
 l1, l2 = -5, 2
 lambdas = np.power(10.0, range(l1, l2))
+
+# Neural Network configuration
+n_hidden_units_options = range(1, 4)  # Different h-values
+n_replicates = 1  # Replicates for the NN training
+max_iter = 10000  # Maximum iterations for NN training
 
 # Error variables
 # Base model
@@ -88,9 +101,11 @@ for di_train, di_test in CV1.split(X, y):
     # Define inner folds
     K2 = 10
     CV2 = model_selection.KFold(n_splits=K2,shuffle=True)
+
+    ##          BASE            ##
     validation_error = np.empty((K2,1))
     j = 0
-    for dj_train, dj_test in CV2.split(X_train, y_train):
+    for dj_train, dj_test in CV2.split(y_train):
         ## BASE ##
         # Training on inner fold training data
         mean_train[i][j] = np.mean(y_train[dj_train])
@@ -107,9 +122,49 @@ for di_train, di_test in CV1.split(X, y):
     # Calculate generalization error for the base model
     generalization_error_base[i] = np.mean(validation_error)*sigmaY
     
-    ## ANN ## 
-    
+    ##            ANN             ##
+    #Model-Definition
+    for n_hidden_units in n_hidden_units_options:
+        model = lambda: torch.nn.Sequential(
+        torch.nn.Linear(M, n_hidden_units),  # M features to n_hidden_units
+        torch.nn.Tanh(),  # 1st transfer function,
+        torch.nn.Linear(n_hidden_units, 1),  # n_hidden_units to 1 output neuron
+        # no final tranfer function, i.e. "linear output"
+        )
+        loss_fn = torch.nn.MSELoss()  # notice how this is now a mean-squared-error loss
+        j = 0
+        for k, (dj_train, dj_test) in CV2.split(y_train):
+            errors_ANN = []
+            print("\nCrossvalidation fold: {0}/{1}".format(k + 1, K2))
 
+            # Extract training and test set for current CV fold, convert to tensors
+            X_train = torch.Tensor(X[dj_train, :])
+            y_train = torch.Tensor(y[dj_train])
+            X_test = torch.Tensor(X[dj_test, :])
+            y_test = torch.Tensor(y[dj_test])
+            
+            # Train the net on training data
+            net, final_loss, learning_curve = train_neural_net(
+                model,
+                loss_fn,
+                X=X_train,
+                y=y_train,
+                n_replicates=n_replicates,
+                max_iter=max_iter,
+            )
+
+        print("\n\tBest loss: {}\n".format(final_loss))
+        # Determine estimated class labels for test set
+        y_test_est = net(X_test)
+
+        # Determine errors
+        se = (y_test_est.float() - y_test.float()) ** 2  # squared error
+        mse = (sum(se).type(torch.float) / len(y_test)).data.numpy()  # mean
+        errors_ANN.append(mse)  # store error rate for current CV fold    
+    
+        # Average error across inner folds for this NN configuration
+        avg_ANN_error = np.mean(errors_ANN)
+        print(f"Average error for ANN with {n_hidden_units} hidden units: {avg_ANN_error}")
 
     ## REGULAR ##
     # Use function rlr_validate to find optimal lambda with 10-fold cross validation
